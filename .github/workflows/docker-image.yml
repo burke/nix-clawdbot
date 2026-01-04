@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-          nix build .#clawdbot-docker --system aarch64-linux
+          nix build .#clawdbot-docker
 
       - name: Load image
         shell: bash
