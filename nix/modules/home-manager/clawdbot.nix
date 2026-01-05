@@ -5,9 +5,13 @@ let
   homeDir = config.home.homeDirectory;
   appPackage = if cfg.appPackage != null then cfg.appPackage else cfg.package;
 
-  mkBaseConfig = workspaceDir: {
+  mkBaseConfig = workspaceDir: inst: {
     gateway = { mode = "local"; };
-    agent = { workspace = workspaceDir; };
+    agent = {
+      workspace = workspaceDir;
+      model = inst.agent.model;
+      thinkingDefault = inst.agent.thinkingDefault;
+    };
   };
 
   mkTelegramConfig = inst: lib.optionalAttrs inst.providers.telegram.enable {
@@ -163,6 +167,19 @@ let
           type = lib.types.str;
           default = "";
           description = "Path to Anthropic API key file (used to set ANTHROPIC_API_KEY).";
+        };
+      };
+
+      agent = {
+        model = lib.mkOption {
+          type = lib.types.str;
+          default = cfg.defaults.model;
+          description = "Default model for this instance (provider/model).";
+        };
+        thinkingDefault = lib.mkOption {
+          type = lib.types.enum [ "off" "minimal" "low" "medium" "high" ];
+          default = cfg.defaults.thinkingDefault;
+          description = "Default thinking level for this instance (\"max\" maps to \"high\").";
         };
       };
 
@@ -650,7 +667,7 @@ let
         inst.package;
     pluginPackages = pluginPackagesFor name;
     pluginEnvAll = pluginEnvAllFor name;
-    baseConfig = mkBaseConfig inst.workspaceDir;
+    baseConfig = mkBaseConfig inst.workspaceDir inst;
     mergedConfig = lib.recursiveUpdate
       (lib.recursiveUpdate baseConfig (lib.recursiveUpdate (mkTelegramConfig inst) (mkRoutingConfig inst)))
       inst.configOverrides;
@@ -856,6 +873,19 @@ in {
       });
       default = [];
       description = "Plugins enabled for the default instance (merged with first-party toggles).";
+    };
+
+    defaults = {
+      model = lib.mkOption {
+        type = lib.types.str;
+        default = "anthropic/claude-opus-4-5";
+        description = "Default model for all instances (provider/model). Slower and more expensive than smaller models.";
+      };
+      thinkingDefault = lib.mkOption {
+        type = lib.types.enum [ "off" "minimal" "low" "medium" "high" ];
+        default = "high";
+        description = "Default thinking level for all instances (\"max\" maps to \"high\").";
+      };
     };
 
     firstParty = {
