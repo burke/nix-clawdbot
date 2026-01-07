@@ -1,12 +1,15 @@
 { lib
 , stdenv
 , fetchFromGitHub
+, fetchurl
 , nodejs_22
 , pnpm_10
 , pkg-config
 , python3
+, node-gyp
 , makeWrapper
 , vips
+, git
 , zstd
 , sourceInfo
 , gatewaySrc ? null
@@ -18,6 +21,22 @@ assert gatewaySrc == null || pnpmDepsHash != null;
 let
   pnpmPlatform = if stdenv.hostPlatform.isDarwin then "darwin" else "linux";
   pnpmArch = if stdenv.hostPlatform.isAarch64 then "arm64" else "x64";
+  nodeAddonApi = stdenv.mkDerivation {
+    pname = "node-addon-api";
+    version = "8.5.0";
+    src = fetchurl {
+      url = "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.5.0.tgz";
+      hash = "sha256-0S8HyBYig7YhNVGFXx2o2sFiMxN0YpgwteZA8TDweRA=";
+    };
+    dontConfigure = true;
+    dontBuild = true;
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out/lib/node_modules/node-addon-api
+      tar -xf $src --strip-components=1 -C $out/lib/node_modules/node-addon-api
+      runHook postInstall
+    '';
+  };
 in
 
 stdenv.mkDerivation (finalAttrs: {
@@ -34,6 +53,7 @@ stdenv.mkDerivation (finalAttrs: {
     fetcherVersion = 2;
     npm_config_arch = pnpmArch;
     npm_config_platform = pnpmPlatform;
+    nativeBuildInputs = [ git ];
   };
 
   nativeBuildInputs = [
@@ -41,6 +61,7 @@ stdenv.mkDerivation (finalAttrs: {
     pnpm_10
     pkg-config
     python3
+    node-gyp
     makeWrapper
     zstd
   ];
@@ -48,11 +69,13 @@ stdenv.mkDerivation (finalAttrs: {
   buildInputs = [ vips ];
 
   env = {
-    SHARP_FORCE_GLOBAL_LIBVIPS = "1";
-    npm_config_build_from_source = "true";
+    SHARP_IGNORE_GLOBAL_LIBVIPS = "1";
     npm_config_arch = pnpmArch;
     npm_config_platform = pnpmPlatform;
     PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS = "false";
+    npm_config_nodedir = nodejs_22;
+    npm_config_python = python3;
+    NODE_PATH = "${nodeAddonApi}/lib/node_modules:${node-gyp}/lib/node_modules";
   };
 
   postPatch = ''
@@ -83,14 +106,48 @@ PY
 
     chmod -R +w "$STORE_PATH"
 
+    # pnpm --ignore-scripts marks tarball deps as "not built" and offline install
+    # later refuses to use them; if a dep doesn't require build, promote it.
+    while IFS= read -r -d "" file; do
+      if python3 - "$file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+sys.exit(0 if not data.get("requiresBuild", False) else 1)
+PY
+      then
+        cp "$file" "''${file%integrity-not-built.json}integrity.json"
+      fi
+    done < <(find "$STORE_PATH" -name "integrity-not-built.json" -print0)
+
     pnpm config set store-dir "$STORE_PATH"
     pnpm config set package-import-method clone-or-copy
     pnpm config set manage-package-manager-versions false
+
+    export REAL_NODE_GYP="$(command -v node-gyp)"
+    wrapper_dir=$(mktemp -d)
+    cat > "$wrapper_dir/node-gyp" <<'SH'
+#!/bin/sh
+if [ "$1" = "rebuild" ]; then
+  shift
+  "$REAL_NODE_GYP" configure "$@" && "$REAL_NODE_GYP" build "$@"
+  exit $?
+fi
+exec "$REAL_NODE_GYP" "$@"
+SH
+    chmod +x "$wrapper_dir/node-gyp"
+    export PATH="$wrapper_dir:$PATH"
   '';
 
   buildPhase = ''
     runHook preBuild
-    pnpm install --offline --frozen-lockfile
+    pnpm install --offline --frozen-lockfile --ignore-scripts
+    chmod -R u+w node_modules
+    rm -rf node_modules/.pnpm/sharp@*/node_modules/sharp/src/build
+    pnpm rebuild
     patchShebangs node_modules/{*,.*}
     pnpm build
     pnpm ui:build
