@@ -3321,12 +3321,86 @@ in
           };
         }; };
         };
+        responses = lib.mkOption {
+          type = t.submodule { options = {
+          enabled = lib.mkOption {
+            type = t.bool;
+          };
+          files = lib.mkOption {
+            type = t.submodule { options = {
+            allowUrl = lib.mkOption {
+              type = t.bool;
+            };
+            allowedMimes = lib.mkOption {
+              type = t.listOf (t.str);
+            };
+            maxBytes = lib.mkOption {
+              type = t.int;
+            };
+            maxChars = lib.mkOption {
+              type = t.int;
+            };
+            maxRedirects = lib.mkOption {
+              type = t.int;
+            };
+            pdf = lib.mkOption {
+              type = t.submodule { options = {
+              maxPages = lib.mkOption {
+                type = t.int;
+              };
+              maxPixels = lib.mkOption {
+                type = t.int;
+              };
+              minTextChars = lib.mkOption {
+                type = t.int;
+              };
+            }; };
+            };
+            timeoutMs = lib.mkOption {
+              type = t.int;
+            };
+          }; };
+          };
+          images = lib.mkOption {
+            type = t.submodule { options = {
+            allowUrl = lib.mkOption {
+              type = t.bool;
+            };
+            allowedMimes = lib.mkOption {
+              type = t.listOf (t.str);
+            };
+            maxBytes = lib.mkOption {
+              type = t.int;
+            };
+            maxRedirects = lib.mkOption {
+              type = t.int;
+            };
+            timeoutMs = lib.mkOption {
+              type = t.int;
+            };
+          }; };
+          };
+          maxBodyBytes = lib.mkOption {
+            type = t.int;
+          };
+        }; };
+        };
       }; };
       };
     }; };
     };
     mode = lib.mkOption {
       type = t.oneOf [ t.enum [ "local" ] t.enum [ "remote" ] ];
+    };
+    nodes = lib.mkOption {
+      type = t.submodule { options = {
+      allowCommands = lib.mkOption {
+        type = t.listOf (t.str);
+      };
+      denyCommands = lib.mkOption {
+        type = t.listOf (t.str);
+      };
+    }; };
     };
     port = lib.mkOption {
       type = t.int;
@@ -3758,6 +3832,9 @@ in
       };
       apiKey = lib.mkOption {
         type = t.str;
+      };
+      auth = lib.mkOption {
+        type = t.oneOf [ t.enum [ "api-key" ] t.enum [ "aws-sdk" ] t.enum [ "oauth" ] t.enum [ "token" ] ];
       };
       authHeader = lib.mkOption {
         type = t.bool;
