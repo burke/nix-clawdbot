@@ -4,6 +4,11 @@ mkdir -p "$out/lib/clawdbot" "$out/bin"
 
 cp -r dist node_modules package.json ui "$out/lib/clawdbot/"
 
+# Copy extensions directory if present (contains memory-core, telegram, discord, etc.)
+if [ -d extensions ]; then
+  cp -r extensions "$out/lib/clawdbot/"
+fi
+
 if [ -z "${STDENV_SETUP:-}" ]; then
   echo "STDENV_SETUP is not set" >&2
   exit 1
@@ -16,6 +21,15 @@ fi
 bash -e -c '. "$STDENV_SETUP"; patchShebangs "$out/lib/clawdbot/node_modules/.bin"'
 if [ -d "$out/lib/clawdbot/ui/node_modules/.bin" ]; then
   bash -e -c '. "$STDENV_SETUP"; patchShebangs "$out/lib/clawdbot/ui/node_modules/.bin"'
+fi
+
+# Patch shebangs in extensions node_modules if present
+if [ -d "$out/lib/clawdbot/extensions" ]; then
+  for ext_bin in "$out/lib/clawdbot/extensions"/*/node_modules/.bin; do
+    if [ -d "$ext_bin" ]; then
+      bash -e -c '. "$STDENV_SETUP"; patchShebangs "'"$ext_bin"'"'
+    fi
+  done
 fi
 
 # Work around missing dependency declaration in pi-coding-agent (strip-ansi).
