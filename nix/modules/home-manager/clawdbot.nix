@@ -48,7 +48,6 @@ let
     messages = {
       queue = {
         mode = inst.routing.queue.mode;
-        byProvider = inst.routing.queue.byProvider;
       };
     };
   };
