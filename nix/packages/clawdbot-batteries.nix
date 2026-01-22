@@ -12,7 +12,7 @@ in
 buildEnv {
   name = "clawdbot-2.0.0-beta5";
   paths = [ clawdbot-gateway ] ++ appPaths ++ extendedTools;
-  pathsToLink = [ "/bin" ] ++ appLinks;
+  pathsToLink = [ "/bin" "/lib" ] ++ appLinks;
 
   meta = with lib; {
     description = "Clawdbot batteries-included bundle (gateway + app + tools)";
